@@ -414,7 +414,6 @@
     transition:transform .35s cubic-bezier(.2,.8,.25,1.2), opacity .3s ease;
     z-index:40;
   }
-
   .reveal.show{transform:translate(-50%,-50%) scale(1);opacity:1;}
   .reveal .verdict-line{
     font-family:var(--font-display);
@@ -713,27 +712,29 @@
   // ---------------------------------------------------------------
   // CONFIG
   // SCORE_ENDPOINT: the HTTP POST URL from your Power Automate flow.
-  //   Once set, every submission also gets checked/reserved against
-  //   the SharePoint list itself (works across devices/browsers).
-  //   Until it's filled in, the game still runs — the localStorage
-  //   guard below is what enforces one play per person for now.
+  //   Submits exactly {name, email, score} — match your flow's
+  //   trigger schema to this shape.
+  //   ⚠️ The URL below looks truncated (ends in "…") — Power Automate
+  //   trigger URLs are long and end with a &sig=... signature. Paste
+  //   the FULL url from the flow's trigger card or submissions will
+  //   fail with a network/CORS error.
   // ALLOWED_EMAIL_DOMAIN: only emails ending in this domain are
   //   accepted (e.g. name@ingrammicro.com passes, name@ingram.co
   //   is rejected).
   // ---------------------------------------------------------------
   const CONFIG = {
-    SCORE_ENDPOINT: '',
+    SCORE_ENDPOINT: 'https://320da500b1c942b5821790fc274f46.a4.environment.api.powerplatform.com:443/powerautomate/autom…',
     ALLOWED_EMAIL_DOMAIN: 'ingrammicro.com'
   };
 
-  // Interim single-play guard, per the note in the request: "for now
-  // store that data in localStorage... we'll update the logic later."
-  // Keyed by the lowercased email so re-entry is blocked on this
-  // browser even before/without the SharePoint flow being live.
+  // Single-play guard, per the request: "for now store that data in
+  // localStorage... we'll update the logic later." Keyed by the
+  // lowercased email so re-entry is blocked on this browser. This is
+  // the ONLY thing enforcing one-play-per-person right now — the
+  // flow's schema ({name,email,score}) has no check/reserve step.
   const PLAYED_KEY = 'dgp_played_players_v1';
 
   let player = { name: '', email: '' };
-  let startItemId = null;
 
   const CARDS = [
     {
@@ -1222,35 +1223,61 @@
     catch(err){ console.warn('Could not save local play record:', err); }
   }
 
-  async function callFlow(payload){
-    if(!CONFIG.SCORE_ENDPOINT) return null;
+  // Posts {name, email, score} to CONFIG.SCORE_ENDPOINT.
+  // Returns { ok: true } on success, or { ok: false, reason } on any
+  // failure — network error, timeout, non-2xx HTTP status, or a
+  // response body that isn't valid JSON.
+  async function postScore(payload){
+    if(!CONFIG.SCORE_ENDPOINT){
+      console.warn('SCORE_ENDPOINT is not configured — nothing was sent.', payload);
+      return { ok:false, reason:'not-configured' };
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(()=> controller.abort(), 12000); // 12s safety timeout
+
     try{
       const res = await fetch(CONFIG.SCORE_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: controller.signal
       });
-      return await res.json();
+
+      if(!res.ok){
+        console.warn(`Leaderboard request failed: HTTP ${res.status}`);
+        return { ok:false, reason:'http-' + res.status };
+      }
+
+      // Some Power Automate responses are empty/non-JSON on success —
+      // don't treat that as a failure, just skip parsing.
+      const text = await res.text();
+      if(text){
+        try{ JSON.parse(text); }
+        catch(parseErr){ console.warn('Response was not valid JSON (ignored):', parseErr); }
+      }
+
+      return { ok:true };
     }catch(err){
-      console.warn('Leaderboard request failed:', err);
-      return null;
+      if(err.name === 'AbortError'){
+        console.warn('Leaderboard request timed out.');
+        return { ok:false, reason:'timeout' };
+      }
+      console.warn('Leaderboard request failed (network error):', err);
+      return { ok:false, reason:'network' };
+    }finally{
+      clearTimeout(timeout);
     }
   }
 
-  async function submitScore(survived){
-    const result = await callFlow({
-      action: 'submit',
-      itemId: startItemId,
+  async function submitScore(){
+    const payload = {
+      name: player.name,
       email: player.email,
-      username: player.name,
-      yourScore: youScore,
-      attackerScore: atkScore,
-      correctCount: correctCount,
-      blockedCount: blockedCount,
-      result: survived ? 'Won' : 'Played',
-      playedAt: new Date().toISOString()
-    });
-    return !!result;
+      score: youScore
+    };
+    const result = await postScore(payload);
+    return result.ok;
   }
 
   const entryError = el('entryError');
@@ -1278,8 +1305,8 @@
       return;
     }
 
-    // Interim client-side guard — blocks a repeat attempt on this
-    // browser immediately, no network round trip required.
+    // Single-play guard — this is the ONLY thing blocking re-entry
+    // right now, per the request. Blocks instantly, no network call.
     if(hasPlayedLocally(email)){
       showEntryError("This email has already played — one entry per person. Re-entry isn't allowed.");
       return;
@@ -1287,41 +1314,8 @@
 
     player = { name, email };
 
-    if(CONFIG.SCORE_ENDPOINT){
-      startBtn.disabled = true;
-      startBtn.textContent = 'Checking…';
-      const check = await callFlow({ action: 'check', email: email });
-
-      if(check && check.alreadyPlayed){
-        startBtn.disabled = false;
-        startBtn.textContent = 'Start your shift';
-        showEntryError("You've already played this week — one entry per person. Re-entry isn't allowed.");
-        markPlayedLocally(email, name); // sync the local guard too
-        return;
-      }
-
-      // Lock this email in immediately, before any gameplay happens —
-      // this is what actually prevents someone from starting, bailing
-      // out, and starting fresh to try for a better score.
-      startBtn.textContent = 'Reserving your spot…';
-      const reserved = await callFlow({
-        action: 'start',
-        email: email,
-        username: name,
-        startedAt: new Date().toISOString()
-      });
-      startBtn.disabled = false;
-      startBtn.textContent = 'Start your shift';
-
-      if(!reserved || !reserved.started){
-        showEntryError("Couldn't start your session — check your connection and try again.");
-        return;
-      }
-      startItemId = reserved.itemId;
-    }
-
-    // Lock this email locally right away too, so a refresh/restart
-    // can't be used to replay before the server-side check exists.
+    // Lock this email in immediately, before any gameplay happens, so
+    // bailing out and restarting doesn't let someone replay.
     markPlayedLocally(email, name);
 
     startGame();
@@ -1335,7 +1329,7 @@
     submitBtn.textContent = 'Submitting…';
     submitStatus.hidden = true;
 
-    const ok = await submitScore(lastSurvived);
+    const ok = await submitScore();
 
     submitBtn.hidden = true;
     if(ok){
