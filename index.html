@@ -713,17 +713,16 @@
   // CONFIG
   // SCORE_ENDPOINT: the HTTP POST URL from your Power Automate flow.
   //   Submits exactly {name, email, score} — match your flow's
-  //   trigger schema to this shape.
-  //   ⚠️ The URL below looks truncated (ends in "…") — Power Automate
-  //   trigger URLs are long and end with a &sig=... signature. Paste
-  //   the FULL url from the flow's trigger card or submissions will
-  //   fail with a network/CORS error.
+  //   trigger schema to this shape. Remember: the flow's Response
+  //   action needs an Access-Control-Allow-Origin header (matching
+  //   this game's hosting domain, or *) or the browser will block
+  //   the request even though the flow itself runs fine.
   // ALLOWED_EMAIL_DOMAIN: only emails ending in this domain are
   //   accepted (e.g. name@ingrammicro.com passes, name@ingram.co
   //   is rejected).
   // ---------------------------------------------------------------
   const CONFIG = {
-    SCORE_ENDPOINT: 'https://320da500b1c942b5821790fc274f46.a4.environment.api.powerplatform.com:443/powerautomate/autom…',
+    SCORE_ENDPOINT: 'https://320da500b1c942b5821790fc274f46.a4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/08/workflows/b5426afdfd9541b4b04cc0cb3e3f9bb9/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=s3Gu_RcHrJ4axB4IdWGSUDRuNVXhFbQsmXXYh-9Pezg',
     ALLOWED_EMAIL_DOMAIN: 'ingrammicro.com'
   };
 
