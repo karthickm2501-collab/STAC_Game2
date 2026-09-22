@@ -712,7 +712,8 @@
   // ---------------------------------------------------------------
   // CONFIG
   // SCORE_ENDPOINT: the HTTP POST URL from your Power Automate flow.
-  //   Submits exactly {name, email, score} — match your flow's
+  //   Submits {name, email, score, date, time, playedAt} — match
+  //   your flow's
   //   trigger schema to this shape. Remember: the flow's Response
   //   action needs an Access-Control-Allow-Origin header (matching
   //   this game's hosting domain, or *) or the browser will block
@@ -745,12 +746,12 @@
       note:"A manager asking for money to be sent right now, over chat, while avoiding a call, is a common trick. Always confirm big requests like this by phone or in person first."
     },
     {
-      channel:"📧 Email", from:"IT Helpdesk", handle:"it-helpdesk@corp-secure-alerts.com", time:"8:02 AM",
+      channel:"📧 Email", from:"IT Helpdesk", handle:"it-helpdesk@ingrammicro-alerts.com", time:"8:02 AM",
       subject:"Your password expires in 2 hours",
       body:"Your password expires today. Click the link below to keep your account active. Failure to act within 2 hours will result in a lockout.",
       correct:"block",
       points:8,
-      note:"A countdown clock pushing you to click a link fast is designed to stop you thinking it through. Real IT requests don't usually come with a ticking timer."
+      note:"That's not the real ingrammicro.com domain — just a close lookalike with 'alerts' tacked on. A countdown clock pushing you to click fast is designed to stop you from noticing."
     },
     {
       channel:"📱 SMS", from:"+1 (555) 019-9284", handle:"unknown sender", time:"11:47 AM",
@@ -801,7 +802,7 @@
       note:"Requests to export customer or company data should always be confirmed with your manager or the actual team involved, especially when they come with pressure to move fast."
     },
     {
-      channel:"📧 Email", from:"Sarah Chen", handle:"sarah.chen@yourcompany.com", time:"12:03 PM",
+      channel:"📧 Email", from:"Sarah Chen", handle:"sarah.chen@ingrammicro.com", time:"12:03 PM",
       subject:"Lunch Thursday?",
       body:"Hey! Are we still on for lunch Thursday at 12:30? Let me know so I can book the table.",
       correct:"safe",
@@ -1270,10 +1271,14 @@
   }
 
   async function submitScore(){
+    const now = new Date();
     const payload = {
       name: player.name,
       email: player.email,
-      score: youScore
+      score: youScore,
+      date: now.toISOString().slice(0, 10),   // e.g. "2026-09-22"
+      time: now.toTimeString().slice(0, 8),   // e.g. "14:32:07" (local time)
+      playedAt: now.toISOString()             // full timestamp, e.g. "2026-09-22T14:32:07.123Z"
     };
     const result = await postScore(payload);
     return result.ok;
