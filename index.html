@@ -611,6 +611,65 @@
     clip:rect(0,0,0,0);white-space:nowrap;border:0;
   }
   [hidden]{display:none !important;}
+
+  /* Colourful gameplay only: intro and end screens retain their original styles. */
+  #game{
+    position:relative; isolation:isolate; padding:20px 18px 18px;
+    border-radius:24px;
+    background:linear-gradient(145deg,#19265b 0%,#432477 37%,#116b87 73%,#127d68 100%);
+    box-shadow:0 24px 65px -25px rgba(26,35,91,.72),inset 0 1px 0 rgba(255,255,255,.22);
+    overflow:hidden;
+  }
+  #game::before{
+    content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;
+    background:radial-gradient(circle at 8% 10%,rgba(255,204,81,.33),transparent 35%),
+      radial-gradient(circle at 94% 48%,rgba(250,92,169,.28),transparent 36%),
+      radial-gradient(circle at 15% 96%,rgba(61,236,204,.28),transparent 35%);
+  }
+  #game .hud{
+    background:linear-gradient(115deg,#fff1c9,#ffe4ef 48%,#d6f6ff);
+    border:2px solid rgba(255,255,255,.8);border-radius:16px;
+    box-shadow:0 10px 26px rgba(8,15,58,.24);
+  }
+  #game .hud .round{color:#33204e;font-weight:700;}
+  #game .channel-strip{margin:15px 0 5px;color:#fff;}
+  #game .channel-strip .chip{
+    background:linear-gradient(110deg,#ffcf66,#ff91ad);
+    color:#35204a;border:1px solid #ffe9ab;font-weight:700;
+    box-shadow:0 5px 16px rgba(12,12,47,.28);
+  }
+  #game .card-zone{
+    margin:9px 0 14px;padding:20px 8px 16px;border-radius:22px;
+    background:linear-gradient(140deg,rgba(255,255,255,.18),rgba(255,255,255,.07));
+    border:1px solid rgba(255,255,255,.3);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.23);
+  }
+  #game .msg-card{
+    background:linear-gradient(150deg,#fffaf0 0%,#fff0d8 55%,#ffe5f2 100%);
+    border:2px solid #ffe0a0;border-radius:13px;
+    box-shadow:0 16px 32px -13px rgba(12,10,53,.42),0 4px 0 #e8ad75;
+  }
+  #game .peek{background:linear-gradient(135deg,#ffe4aa,#ffb8d6);border-radius:13px;}
+  #game .msg-card .channel-tag{background:#ffd166;color:#3b2152;border-color:#fff0b7;font-weight:700;}
+  #game .zones{gap:12px;}
+  #game .zone{
+    min-height:105px;border-radius:17px;border-width:2px;
+    box-shadow:0 8px 0 rgba(13,16,62,.22),0 12px 22px rgba(10,13,50,.2);
+    transition:transform .16s ease,box-shadow .16s ease,filter .16s ease;
+  }
+  #game .zone.safe{background:linear-gradient(150deg,#b9ffd4,#56df9a);border-color:#dbffe8;}
+  #game .zone.check{background:linear-gradient(150deg,#fff0a1,#ffb64e);border-color:#fff5c9;}
+  #game .zone.block{background:linear-gradient(150deg,#ffc3d0,#ff7c9d);border-color:#ffe1e9;}
+  #game .zone .icon{font-size:28px;}
+  #game .zone .label{color:#282344;font-size:15px;}
+  #game .zone .sub{color:#433a55;font-weight:600;}
+  #game .zone.hot,#game .zone:hover{
+    transform:translateY(-4px);filter:saturate(1.15) brightness(1.04);
+    box-shadow:0 12px 0 rgba(13,16,62,.19),0 19px 25px rgba(10,13,50,.28);
+  }
+  #game .zone:active{transform:translateY(2px);box-shadow:0 3px 0 rgba(13,16,62,.2);}
+  #game .hint{margin:17px 0 2px;color:#f5f5ff;font-weight:600;}
+  @media(max-width:480px){#game{padding:14px 10px;}#game .zones{gap:7px;}#game .zone{padding:12px 4px;min-height:92px;}}
 </style>
 </head>
 <body>
@@ -850,6 +909,8 @@
   let blockedCount = 0;
   let streak = 0;
   let gameOver = false;
+  // One answer per question, including while the feedback animation is running.
+  let answerLocked = false;
   let lastSurvived = false;
 
   const el = (id)=>document.getElementById(id);
@@ -870,6 +931,7 @@
   }
 
   function startGame(){
+    answerLocked = false;
     order = shuffledOrder(CARDS.length);
     idx = 0; lives = 3; youScore = 0; atkScore = 0; correctCount = 0; blockedCount = 0; streak = 0; gameOver = false;
     introSec.hidden = true;
@@ -890,6 +952,11 @@
 
   function renderCard(){
     if(idx >= order.length || gameOver){ return endGame(); }
+    answerLocked = false;
+    zonesEl.querySelectorAll('.zone').forEach(zone => {
+      zone.removeAttribute('aria-disabled');
+      zone.style.pointerEvents = '';
+    });
     const data = CARDS[order[idx]];
     el('channelChip').textContent = data.channel;
 
@@ -919,7 +986,7 @@
     let startX=0, startY=0, curX=0, curY=0, moved=false, pointerId=null;
 
     card.addEventListener('pointerdown', (e)=>{
-      if(gameOver) return;
+      if(gameOver || answerLocked || pointerId !== null) return;
       pointerId = e.pointerId;
       card.setPointerCapture(pointerId);
       startX = e.clientX; startY = e.clientY;
@@ -928,7 +995,7 @@
     });
 
     card.addEventListener('pointermove', (e)=>{
-      if(pointerId === null) return;
+      if(pointerId === null || answerLocked || e.pointerId !== pointerId) return;
       curX = e.clientX - startX;
       curY = e.clientY - startY;
       if(Math.abs(curX) > 6 || Math.abs(curY) > 6) moved = true;
@@ -941,7 +1008,7 @@
     });
 
     function finish(e){
-      if(pointerId === null) return;
+      if(pointerId === null || answerLocked || e.pointerId !== pointerId) return;
       card.classList.remove('dragging');
       document.querySelectorAll('.zone').forEach(z=>z.classList.remove('hot'));
 
@@ -961,12 +1028,18 @@
     }
 
     card.addEventListener('pointerup', finish);
-    card.addEventListener('pointercancel', finish);
+    card.addEventListener('pointercancel', (e)=>{
+      if(pointerId === null || e.pointerId !== pointerId) return;
+      pointerId = null;
+      card.classList.remove('dragging');
+      document.querySelectorAll('.zone').forEach(z=>z.classList.remove('hot'));
+      card.style.transform = 'rotate(-0.4deg)';
+    });
   }
 
   function handleZoneClick(verdict){
     const card = el('msgCard');
-    if(!card || gameOver) return;
+    if(!card || gameOver || answerLocked) return;
     resolveChoice(verdict, card, verdict === 'block' ? -260 : verdict === 'safe' ? 260 : 0);
   }
 
@@ -978,6 +1051,12 @@
   });
 
   function resolveChoice(chosen, card, flyX){
+    if(answerLocked || gameOver || card !== el('msgCard')) return;
+    answerLocked = true; // Lock synchronously before scoring, popups or animations.
+    zonesEl.querySelectorAll('.zone').forEach(zone => {
+      zone.setAttribute('aria-disabled', 'true');
+      zone.style.pointerEvents = 'none';
+    });
     const data = CARDS[order[idx]];
     const correct = data.correct;
     const pts = data.points;
@@ -1271,14 +1350,21 @@
   }
 
   async function submitScore(){
-    const now = new Date();
-    const payload = {
+    var now = new Date();
+
+    var durationSeconds = gameStartTime
+      ? Math.round((now.getTime() - gameStartTime) / 1000)
+      : null;
+
+    var payload = {
       name: player.name,
       email: player.email,
       score: youScore,
-      date: now.toISOString().slice(0, 10),   // e.g. "2026-09-22"
-      time: now.toTimeString().slice(0, 8),   // e.g. "14:32:07" (local time)
-      playedAt: now.toISOString()             // full timestamp, e.g. "2026-09-22T14:32:07.123Z"
+      durationSeconds: durationSeconds, // total time spent playing, in seconds
+      durationDisplay: durationSeconds !== null ? formatDuration(durationSeconds) : '', // e.g. "2:14"
+      date: now.toISOString().slice(0, 10), // e.g. "2026-09-22"
+      time: now.toTimeString().slice(0, 8), // e.g. "14:32:07" (local time)
+      playedAt: now.toISOString() // full timestamp, e.g. "2026-09-22T14:32:07.123Z"
     };
     const result = await postScore(payload);
     return result.ok;
