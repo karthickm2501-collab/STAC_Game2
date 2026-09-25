@@ -688,7 +688,7 @@
       <div class="rule"><b>🟢 Safe</b><span>Nothing to worry about — go ahead as normal.</span></div>
       <div class="rule"><b>🟡 Check</b><span>Sounds reasonable, but confirm it before acting.</span></div>
       <div class="rule"><b>🔴 Block</b><span>Don't engage. Report it and move on.</span></div>
-      <div class="rule"><b>❤️ x3</b><span>Lose one each time you fall for it.</span></div>
+      <div class="rule"><b>🛡️ x3</b><span>Start with 3 shields. Lose a shield for each wrong decision. Complete all rounds before running out of shields.</span></div>
     </div>
     <div class="entry-form">
       <label for="playerName">Your name</label>
@@ -703,7 +703,7 @@
   <!-- GAME -->
   <div id="game" hidden>
     <div class="hud" id="hud">
-      <div class="lives" id="lives">❤️❤️❤️</div>
+      <div class="lives" id="lives">🛡️🛡️🛡️</div>
       <div class="round" id="roundLabel">ROUND 1 / 12</div>
       <div class="meters">
         <div class="meter-row"><span>YOU</span><div class="meter-track"><div class="meter-fill you" id="youFill" style="width:0%"></div></div></div>
@@ -757,9 +757,8 @@
       <div class="stat you"><div class="num" id="statYou">0</div><div class="lbl">Your score (out of 100)</div></div>
       <div class="stat attacker"><div class="num" id="statAtk">0</div><div class="lbl">Their score</div></div>
     </div>
-    <button class="start-btn" id="submitScoreBtn">Submit score</button>
-    <p class="entry-error" id="submitStatus" hidden></p>
-    <button class="start-btn exit-btn" id="exitBtn" hidden>Exit</button>
+    <p class="entry-error status-ok" id="submitStatus" hidden></p>
+    <button class="start-btn exit-btn" id="exitBtn">Exit</button>
     <p class="hint" id="exitHint" hidden>You can close this tab now — thanks for playing.</p>
   </section>
 
@@ -942,7 +941,7 @@
   }
 
   function renderHud(){
-    el('lives').innerHTML = "❤️❤️❤️".split("").map((h,i)=> i < lives ? h : '<span class="lost">❤️</span>').join('');
+    el('lives').innerHTML = Array.from({length:3}, (_,i)=> i < lives ? '🛡️' : '<span class="lost">🛡️</span>').join('');
     el('roundLabel').textContent = `ROUND ${Math.min(idx+1, CARDS.length)} / ${CARDS.length}`;
     const youPct = Math.min(100, (youScore/100)*100);
     const atkPct = Math.min(100, (atkScore/100)*100);
@@ -1239,16 +1238,28 @@
     el('statYou').textContent = youScore;
     el('statAtk').textContent = atkScore;
 
-    // reset the submit/exit controls for this run
-    const submitBtn = el('submitScoreBtn');
+    // Automatically submit the score to the existing Power Automate endpoint.
+    // The player does not need to click a Submit button.
     const submitStatus = el('submitStatus');
-    submitBtn.hidden = false;
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Submit score';
-    submitStatus.hidden = true;
-    submitStatus.className = 'entry-error';
-    el('exitBtn').hidden = true;
+    submitStatus.textContent = 'Saving your score to the leaderboard…';
+    submitStatus.className = 'entry-error status-ok';
+    submitStatus.hidden = false;
+    el('exitBtn').hidden = false;
     el('exitHint').hidden = true;
+
+    // Disable Exit briefly while the automatic save is in progress so the
+    // browser is not closed before the request has a chance to complete.
+    el('exitBtn').disabled = true;
+    submitScore().then(ok => {
+      if(ok){
+        submitStatus.textContent = '✅ Score saved to the leaderboard automatically.';
+        submitStatus.className = 'entry-error status-ok';
+      } else {
+        submitStatus.textContent = '⚠️ The leaderboard could not be reached. Please contact the game administrator.';
+        submitStatus.className = 'entry-error';
+      }
+      el('exitBtn').disabled = false;
+    });
 
     if(survived){
       fireConfetti();
@@ -1409,28 +1420,6 @@
     markPlayedLocally(email, name);
 
     startGame();
-  });
-
-  el('submitScoreBtn').addEventListener('click', async ()=>{
-    const submitBtn = el('submitScoreBtn');
-    const submitStatus = el('submitStatus');
-
-    submitBtn.disabled = true;
-    submitBtn.textContent = 'Submitting…';
-    submitStatus.hidden = true;
-
-    const ok = await submitScore();
-
-    submitBtn.hidden = true;
-    if(ok){
-      submitStatus.textContent = '✅ Score submitted — thanks for playing!';
-      submitStatus.className = 'entry-error status-ok';
-    } else {
-      submitStatus.textContent = "Couldn't reach the leaderboard, but your session has ended.";
-      submitStatus.className = 'entry-error';
-    }
-    submitStatus.hidden = false;
-    el('exitBtn').hidden = false;
   });
 
   el('exitBtn').addEventListener('click', ()=>{
