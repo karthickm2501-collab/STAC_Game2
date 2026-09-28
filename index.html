@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dont Get Played</title>
+<title>Don't Get Played</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
@@ -1238,27 +1238,25 @@
     el('statYou').textContent = youScore;
     el('statAtk').textContent = atkScore;
 
-    // Automatically submit the score to the existing Power Automate endpoint.
-    // The player does not need to click a Submit button.
+    // Submit immediately when the game finishes. The Exit button stays usable.
+    // fetch(..., { keepalive:true }) lets the browser continue the POST even
+    // when the player leaves this page immediately after finishing.
     const submitStatus = el('submitStatus');
-    submitStatus.textContent = 'Saving your score to the leaderboard…';
+    submitStatus.textContent = '✅ Game complete! Your score is submitted automatically. You can exit now.';
     submitStatus.className = 'entry-error status-ok';
     submitStatus.hidden = false;
     el('exitBtn').hidden = false;
+    el('exitBtn').disabled = false;
     el('exitHint').hidden = true;
 
-    // Disable Exit briefly while the automatic save is in progress so the
-    // browser is not closed before the request has a chance to complete.
-    el('exitBtn').disabled = true;
     submitScore().then(ok => {
       if(ok){
-        submitStatus.textContent = '✅ Score saved to the leaderboard automatically.';
+        submitStatus.textContent = '✅ Score submitted successfully. You can exit now.';
         submitStatus.className = 'entry-error status-ok';
       } else {
         submitStatus.textContent = '⚠️ The leaderboard could not be reached. Please contact the game administrator.';
         submitStatus.className = 'entry-error';
       }
-      el('exitBtn').disabled = false;
     });
 
     if(survived){
@@ -1331,7 +1329,8 @@
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-        signal: controller.signal
+        signal: controller.signal,
+        keepalive: true
       });
 
       if(!res.ok){
@@ -1423,13 +1422,13 @@
   });
 
   el('exitBtn').addEventListener('click', ()=>{
+    // Try to close the game tab. Browsers only allow this when the tab was
+    // opened by script. If closing is blocked, leave the game page instead
+    // of keeping a playable copy on screen.
     window.close();
-    // most browsers block closing a tab that wasn't opened by script —
-    // if we're still here a moment later, guide the person instead.
     setTimeout(()=>{
-      el('exitBtn').hidden = true;
-      el('exitHint').hidden = false;
-    }, 250);
+      window.location.replace('about:blank');
+    }, 150);
   });
 
 })();
