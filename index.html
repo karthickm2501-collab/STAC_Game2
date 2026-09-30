@@ -824,14 +824,11 @@
   //   is rejected).
   // ---------------------------------------------------------------
   const CONFIG = {
-    SCORE_ENDPOINT: 'https://320da500b1c942b5821790fc274f46.a4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/17/workflows/5414d437ad17445bb7ad63eddeeeb218/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=EGkrjsvWfZVjJ4uQKPa0X3Z8FfRkMgxvF3kTBd1eDJ4'    SEND_AS_TEXT_PLAIN: false,
-    // CHECK_ENDPOINT: the HTTP POST URL of the second Power Automate flow
-    // that checks whether an email is already in the SharePoint list.
-    // Request:  { "email": "user@ingrammicro.com" }
-    // Response: { "result": "exists" } or { "result": "does not exist" }
-    // Paste your flow's URL between the quotes. If left empty, the game
-    // will refuse to start (so nobody can play without the check).
-    CHECK_ENDPOINT: '',
+    SCORE_ENDPOINT: 'https://320da500b1c942b5821790fc274f46.a4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/08/workflows/b5426afdfd9541b4b04cc0cb3e3f9bb9/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=s3Gu_RcHrJ4axB4IdWGSUDRuNVXhFbQsmXXYh-9Pezg',
+    // CHECK_ENDPOINT: HTTP GET URL of the email-check flow. The game adds
+    //   &email=<address> and expects JSON back: {"exists": true|false}.
+    CHECK_ENDPOINT: 'https://320da500b1c942b5821790fc274f46.a4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/17/workflows/5414d437ad17445bb7ad63eddeeeb218/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=EGkrjsvWfZVjJ4uQKPa0X3Z8FfRkMgxvF3kTBd1eDJ4',
+    SEND_AS_TEXT_PLAIN: false,
     ALLOWED_EMAIL_DOMAIN: 'ingrammicro.com'
   };
 
@@ -1346,42 +1343,6 @@
     return div.innerHTML;
   }
 
-  /* --- Server-side single-play check (Power Automate + SharePoint) ---
-     Returns 'exists', 'new', or 'error'. */
-  async function checkEmailOnServer(email){
-    if(!CONFIG.CHECK_ENDPOINT){
-      // Fail closed: without the check URL the game cannot confirm this
-      // email is new, so it must not let anyone start.
-      console.error('CHECK_ENDPOINT is not configured — paste the email-check flow URL into CONFIG.');
-      return 'not-configured';
-    }
-    const controller = new AbortController();
-    const timeout = setTimeout(()=> controller.abort(), 12000);
-    try{
-      const res = await fetch(CONFIG.CHECK_ENDPOINT, {
-        method: 'POST',
-        headers: { 'Content-Type': CONFIG.SEND_AS_TEXT_PLAIN ? 'text/plain' : 'application/json' },
-        body: JSON.stringify({ email }),
-        signal: controller.signal
-      });
-      if(!res.ok){
-        console.warn(`Email check failed: HTTP ${res.status}`);
-        return 'error';
-      }
-      const data = await res.json();
-      const result = String(data && data.result || '').trim().toLowerCase();
-      if(result === 'exists') return 'exists';
-      if(result === 'does not exist') return 'new';
-      console.warn('Unexpected email check response:', data);
-      return 'error';
-    }catch(err){
-      console.warn('Email check failed:', err);
-      return 'error';
-    }finally{
-      clearTimeout(timeout);
-    }
-  }
-
   /* --- Interim client-side single-play guard (localStorage) --- */
   function getPlayedMap(){
     try{ return JSON.parse(localStorage.getItem(PLAYED_KEY) || '{}'); }
@@ -1395,6 +1356,31 @@
     map[email] = { name, playedAt: new Date().toISOString() };
     try{ localStorage.setItem(PLAYED_KEY, JSON.stringify(map)); }
     catch(err){ console.warn('Could not save local play record:', err); }
+  }
+
+  // Asks the Power Automate flow whether this email has already played.
+  // Returns { ok:true, exists:boolean } or { ok:false, reason }.
+  async function checkEmailRemote(email){
+    if(!CONFIG.CHECK_ENDPOINT){
+      return { ok:false, reason:'not-configured' };
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(()=> controller.abort(), 12000);
+    try{
+      const url = CONFIG.CHECK_ENDPOINT + '&email=' + encodeURIComponent(email);
+      const res = await fetch(url, { method:'GET', signal: controller.signal });
+      if(!res.ok){
+        console.warn(`Email check failed: HTTP ${res.status}`);
+        return { ok:false, reason:'http-' + res.status };
+      }
+      const data = await res.json();
+      return { ok:true, exists: data.exists === true || data.exists === 'true' };
+    }catch(err){
+      console.warn('Email check failed:', err);
+      return { ok:false, reason: err.name === 'AbortError' ? 'timeout' : 'network' };
+    }finally{
+      clearTimeout(timeout);
+    }
   }
 
   // Posts the payload to CONFIG.SCORE_ENDPOINT.
@@ -1546,31 +1532,27 @@
       return;
     }
 
-    // Guard 1: quick local check (same browser), no network call.
+    // Single-play guard — this is the ONLY thing blocking re-entry
+    // right now, per the request. Blocks instantly, no network call.
     if(hasPlayedLocally(email)){
       showEntryError("This email has already played — one entry per person. Re-entry isn't allowed.");
       return;
     }
 
-    // Guard 2: ask SharePoint (via Power Automate) whether this email
-    // is already in the list. Blocks replay from any device or browser.
-    startBtn.disabled = true;
+    // Server-side check: has this email already played (any browser/device)?
     const originalLabel = startBtn.textContent;
+    startBtn.disabled = true;
     startBtn.textContent = 'Checking…';
-    const status = await checkEmailOnServer(email);
+    const check = await checkEmailRemote(email);
     startBtn.disabled = false;
     startBtn.textContent = originalLabel;
 
-    if(status === 'exists'){
-      showEntryError("You have already played — one entry per person. Re-entry isn't allowed.");
+    if(!check.ok){
+      showEntryError("Couldn't verify your email right now. Check your connection and try again.");
       return;
     }
-    if(status === 'not-configured'){
-      showEntryError('Setup incomplete: the email-check URL (CHECK_ENDPOINT) has not been added to the game.');
-      return;
-    }
-    if(status === 'error'){
-      showEntryError("We couldn't verify your entry. Check your connection and try again.");
+    if(check.exists){
+      showEntryError("This email has already played — one entry per person. Re-entry isn't allowed.");
       return;
     }
 
