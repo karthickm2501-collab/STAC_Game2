@@ -826,6 +826,13 @@
   const CONFIG = {
     SCORE_ENDPOINT: 'https://320da500b1c942b5821790fc274f46.a4.environment.api.powerplatform.com:443/powerautomate/automations/direct/cu/08/workflows/b5426afdfd9541b4b04cc0cb3e3f9bb9/triggers/manual/paths/invoke?api-version=1&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=s3Gu_RcHrJ4axB4IdWGSUDRuNVXhFbQsmXXYh-9Pezg',
     SEND_AS_TEXT_PLAIN: false,
+    // CHECK_ENDPOINT: the HTTP POST URL of the second Power Automate flow
+    // that checks whether an email is already in the SharePoint list.
+    // Request:  { "email": "user@ingrammicro.com" }
+    // Response: { "result": "exists" } or { "result": "does not exist" }
+    // Paste your flow's URL between the quotes. If left empty, only the
+    // local browser check is used.
+    CHECK_ENDPOINT: '',
     ALLOWED_EMAIL_DOMAIN: 'ingrammicro.com'
   };
 
@@ -1340,6 +1347,40 @@
     return div.innerHTML;
   }
 
+  /* --- Server-side single-play check (Power Automate + SharePoint) ---
+     Returns 'exists', 'new', or 'error'. */
+  async function checkEmailOnServer(email){
+    if(!CONFIG.CHECK_ENDPOINT){
+      console.warn('CHECK_ENDPOINT is not configured — skipping server check.');
+      return 'new';
+    }
+    const controller = new AbortController();
+    const timeout = setTimeout(()=> controller.abort(), 12000);
+    try{
+      const res = await fetch(CONFIG.CHECK_ENDPOINT, {
+        method: 'POST',
+        headers: { 'Content-Type': CONFIG.SEND_AS_TEXT_PLAIN ? 'text/plain' : 'application/json' },
+        body: JSON.stringify({ email }),
+        signal: controller.signal
+      });
+      if(!res.ok){
+        console.warn(`Email check failed: HTTP ${res.status}`);
+        return 'error';
+      }
+      const data = await res.json();
+      const result = String(data && data.result || '').trim().toLowerCase();
+      if(result === 'exists') return 'exists';
+      if(result === 'does not exist') return 'new';
+      console.warn('Unexpected email check response:', data);
+      return 'error';
+    }catch(err){
+      console.warn('Email check failed:', err);
+      return 'error';
+    }finally{
+      clearTimeout(timeout);
+    }
+  }
+
   /* --- Interim client-side single-play guard (localStorage) --- */
   function getPlayedMap(){
     try{ return JSON.parse(localStorage.getItem(PLAYED_KEY) || '{}'); }
@@ -1504,10 +1545,27 @@
       return;
     }
 
-    // Single-play guard — this is the ONLY thing blocking re-entry
-    // right now, per the request. Blocks instantly, no network call.
+    // Guard 1: quick local check (same browser), no network call.
     if(hasPlayedLocally(email)){
       showEntryError("This email has already played — one entry per person. Re-entry isn't allowed.");
+      return;
+    }
+
+    // Guard 2: ask SharePoint (via Power Automate) whether this email
+    // is already in the list. Blocks replay from any device or browser.
+    startBtn.disabled = true;
+    const originalLabel = startBtn.textContent;
+    startBtn.textContent = 'Checking…';
+    const status = await checkEmailOnServer(email);
+    startBtn.disabled = false;
+    startBtn.textContent = originalLabel;
+
+    if(status === 'exists'){
+      showEntryError("You have already played — one entry per person. Re-entry isn't allowed.");
+      return;
+    }
+    if(status === 'error'){
+      showEntryError("We couldn't verify your entry. Check your connection and try again.");
       return;
     }
 
