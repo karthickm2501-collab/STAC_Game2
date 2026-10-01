@@ -832,13 +832,6 @@
     ALLOWED_EMAIL_DOMAIN: 'ingrammicro.com'
   };
 
-  // Single-play guard, per the request: "for now store that data in
-  // localStorage... we'll update the logic later." Keyed by the
-  // lowercased email so re-entry is blocked on this browser. This is
-  // the ONLY thing enforcing one-play-per-person right now — the
-  // flow's schema has no check/reserve step.
-  const PLAYED_KEY = 'dgp_played_players_v1';
-
   let player = { name: '', email: '' };
 
   // Set the logo images (if a logo was provided above)
@@ -855,7 +848,6 @@
       subject:"Need this now, in a meeting",
       body:"Hey, are you at your desk? I need you to send an urgent payment before the board call starts. Can't talk right now — just reply here and I'll send the account details.",
       correct:"block",
-      points:9,
       note:"A manager asking for money to be sent right now, over chat, while avoiding a call, is a common trick. Always confirm big requests like this by phone or in person first."
     },
     {
@@ -863,7 +855,6 @@
       subject:"Your password expires in 2 hours",
       body:"Your password expires today. Click the link below to keep your account active. Failure to act within 2 hours will result in a lockout.",
       correct:"block",
-      points:8,
       note:"That's not the real ingrammicro.com domain — just a close lookalike with 'alerts' tacked on. A countdown clock pushing you to click fast is designed to stop you from noticing."
     },
     {
@@ -871,7 +862,6 @@
       subject:"Your bank code: 483920",
       body:"Your one-time code is 483920. If you didn't request this, call this number right away: 555-0122.",
       correct:"block",
-      points:8,
       note:"If you never asked for a code, someone else is trying to log in as you. The 'help' number in the text belongs to them, not your bank."
     },
     {
@@ -879,7 +869,6 @@
       subject:"We found a virus on your laptop",
       body:"We've spotted a virus on your work laptop from our monitoring center. I need you to install this tool right now so I can access your screen and fix it.",
       correct:"block",
-      points:9,
       note:"Nobody legitimate cold-calls you and asks to remotely control your computer. Hang up and report it to IT yourself."
     },
     {
@@ -887,7 +876,6 @@
       subject:"Running late for my meeting",
       body:"Hi, I'm running late for my 2pm upstairs. Can you let me in? My contact is someone in your office, they know I'm coming.",
       correct:"block",
-      points:8,
       note:"No badge and a name-drop instead of a confirmed appointment is a common way to walk into a building. Check with the person they named before letting anyone in."
     },
     {
@@ -895,7 +883,6 @@
       subject:"Updated payment details",
       body:"Quick note — our company's bank account has changed. Please use the attached details for any payments going forward.",
       correct:"check",
-      points:8,
       note:"A changed bank account is one of the most common tricks used against finance and sales teams. Always confirm the change with the client by phone using a number you already have, not one in the email."
     },
     {
@@ -903,7 +890,6 @@
       subject:"Can you send the contract here instead?",
       body:"Loved our call! To move things faster, can you send the signed contract and pricing sheet to my personal email instead of my work one?",
       correct:"check",
-      points:9,
       note:"A genuine prospect usually has no reason to avoid their own work email for a deal this size. Worth a quick check before sending anything over."
     },
     {
@@ -911,7 +897,6 @@
       subject:"Need the customer list for an audit",
       body:"Hi, we're running an urgent audit and need the full customer list exported to this shared drive today. Can you send it over?",
       correct:"check",
-      points:8,
       note:"Requests to export customer or company data should always be confirmed with your manager or the actual team involved, especially when they come with pressure to move fast."
     },
     {
@@ -919,7 +904,6 @@
       subject:"Lunch Thursday?",
       body:"Hey! Are we still on for lunch Thursday at 12:30? Let me know so I can book the table.",
       correct:"safe",
-      points:8,
       note:"A known coworker, a known address, and nothing sensitive being asked for. This is just lunch."
     },
     {
@@ -927,7 +911,6 @@
       subject:"Open enrollment closes Friday",
       body:"Reminder: open enrollment for benefits closes this Friday. Visit the HR portal on the internal network to review your selections.",
       correct:"safe",
-      points:9,
       note:"Expected, scheduled, from a known internal source, and it doesn't ask you to click anything unusual or hand over any details."
     },
     {
@@ -935,7 +918,6 @@
       subject:"Redelivery fee needed",
       body:"Your package couldn't be delivered. Pay a small $1.99 redelivery fee here: bit.ly/xyz123 to reschedule.",
       correct:"block",
-      points:8,
       note:"A tiny fee and a shortened link hiding where it really goes is a classic setup to steal your card details."
     },
     {
@@ -943,8 +925,91 @@
       subject:"Package needs a signature",
       body:"Hi, this is Morgan downstairs — a courier dropped off a package for you, needs a signature. Can you come down when you get a chance?",
       correct:"safe",
-      points:8,
       note:"Internal extension, ordinary request, nothing sensitive involved. Just a package."
+    },
+    {
+      channel:"📧 Email", from:"Microsoft 365 Security", handle:"security-noreply@m365-verify-account.com", time:"7:41 AM",
+      subject:"Unusual sign-in detected",
+      body:"We noticed a sign-in to your account from a new device in another country. Verify your identity now using the link below or your account will be suspended.",
+      correct:"block",
+      note:"The sender's domain isn't Microsoft's, and the threat of suspension is meant to rush you. If you're worried, go to the sign-in page yourself instead of using the link."
+    },
+    {
+      channel:"💬 Teams", from:"\"CEO\" (Executive Office)", handle:"external guest account", time:"10:05 AM",
+      subject:"Quick favour — keep it between us",
+      body:"I'm stuck in meetings all day. Can you buy 10 gift cards for a client gift and send me the codes here? Don't mention it to anyone yet, I'll explain later.",
+      correct:"block",
+      note:"Secrecy plus gift card codes is a classic executive impersonation scam. Real leaders don't ask for this over chat, and an external guest account is a giveaway."
+    },
+    {
+      channel:"📞 Call", from:"Unknown", handle:"caller ID: \"Card Fraud Dept\"", time:"2:08 PM",
+      subject:"Someone is using the company card",
+      body:"We've just blocked a suspicious payment on your company card. To confirm it's you, please read out the 6-digit code we just texted to your phone.",
+      correct:"block",
+      note:"That code is the key to your account. Nobody legitimate will ever ask you to read one out. Hang up and call the number on the back of your card."
+    },
+    {
+      channel:"📧 Email", from:"Payroll Team", handle:"payroll@ingrammicro-hr-portal.com", time:"8:55 AM",
+      subject:"Update your bank details to get paid",
+      body:"We couldn't process your last salary payment. Please confirm your bank details using the secure form below within 24 hours to avoid a delay.",
+      correct:"block",
+      note:"The domain is a lookalike, and a form asking for bank details under a deadline is built to steal them. Payroll changes are made in the official HR system, not through email links."
+    },
+    {
+      channel:"🏢 Visitor", from:"Man in a hi-vis vest", handle:"no badge, carrying a toolbox", time:"11:20 AM",
+      subject:"Here to check the air conditioning",
+      body:"Facilities booked me to check the air conditioning in the server room, but I've lost the paperwork. Could you hold the door so I can get through?",
+      correct:"block",
+      note:"A uniform and a toolbox prove nothing. Without a badge or a confirmed booking, don't let anyone through a secure door. Call facilities to check first."
+    },
+    {
+      channel:"📱 SMS", from:"\"IT Security\"", handle:"unrecognized number", time:"9:30 AM",
+      subject:"Approve the sign-in request",
+      body:"We're testing a new login system today. You'll get a sign-in approval prompt on your phone shortly. Please tap Approve so we can finish your setup.",
+      correct:"block",
+      note:"Approving a prompt you didn't start lets the attacker straight into your account. IT will never ask you to approve one on their behalf."
+    },
+    {
+      channel:"📧 Email", from:"Vendor Accounts", handle:"billing@trusted-vendor-mail.com", time:"1:15 PM",
+      subject:"Our invoices are moving to a new portal",
+      body:"From next month we're moving all invoicing to a new portal. Please register your company using the link below before the next payment cycle.",
+      correct:"check",
+      note:"The vendor may be genuine, but a new portal link is a common way to harvest logins. Confirm with your usual contact, using details you already have."
+    },
+    {
+      channel:"💬 Teams", from:"Alex Rivera (Sales Ops)", handle:"internal", time:"3:05 PM",
+      subject:"Can you give me access to the pricing folder?",
+      body:"I'm covering for Jordan this week and need access to the pricing folder. Could you add me today so I can finish the quotes?",
+      correct:"check",
+      note:"It's plausible and internal, but access should be granted only after confirming with Jordan or the folder owner. A quick check avoids giving the wrong person access."
+    },
+    {
+      channel:"📧 Email", from:"Priya Nair", handle:"priya.nair@ingrammicro.com", time:"2:40 PM",
+      subject:"Quick look at this before 3pm?",
+      body:"Can you review this file ahead of the 3pm meeting? The link is below. Sorry for the short notice!",
+      correct:"check",
+      note:"Known sender, but an unexpected link with a deadline. Colleagues' accounts get hacked too, so send her a quick message to confirm before you open it."
+    },
+    {
+      channel:"📧 Email", from:"IT Helpdesk", handle:"helpdesk@ingrammicro.com", time:"9:05 AM",
+      subject:"Scheduled maintenance Saturday",
+      body:"Reminder: systems will be unavailable on Saturday from 10pm to 2am for planned maintenance. No action is needed from you.",
+      correct:"safe",
+      note:"Real internal address, expected notice, and nothing asked of you. This is just a heads-up."
+    },
+    {
+      channel:"💬 Teams", from:"Your team lead", handle:"internal", time:"4:20 PM",
+      subject:"Team meeting moved to 3pm",
+      body:"Heads up, tomorrow's team meeting has moved to 3pm. Same Teams link as usual.",
+      correct:"safe",
+      note:"A known colleague, an ordinary scheduling change, and no links or sensitive requests."
+    },
+    {
+      channel:"📞 Call", from:"Facilities", handle:"internal extension", time:"10:40 AM",
+      subject:"Fire drill at 11am",
+      body:"Quick reminder that there's a fire drill at 11am today. Please follow the usual assembly points when the alarm sounds.",
+      correct:"safe",
+      note:"Internal extension, routine notice, nothing to click and nothing to hand over."
     }
   ];
 
@@ -954,7 +1019,7 @@
     block:{icon:"🔴", label:"Block"}
   };
 
-  let order = [];
+  let deck = [];
   let idx = 0;
   let lives = 3;
   let youScore = 0;
@@ -984,19 +1049,42 @@
   const zonesEl = el('zones');
   const hud = el('hud');
 
-  function shuffledOrder(n){
-    const arr = Array.from({length:n}, (_,i)=>i);
-    for(let i=arr.length-1;i>0;i--){
+  // Each player gets their own random set of questions. The pool above has
+  // more questions than one game uses; every game draws DECK_MIX of each
+  // type, shuffles them, and splits TOTAL_POINTS evenly across them so the
+  // maximum score is always 100.
+  const DECK_MIX = { block:6, check:3, safe:3 };
+  const TOTAL_POINTS = 100;
+
+  function shuffle(arr){
+    const a = arr.slice();
+    for(let i=a.length-1;i>0;i--){
       const j = Math.floor(Math.random()*(i+1));
-      [arr[i],arr[j]] = [arr[j],arr[i]];
+      [a[i],a[j]] = [a[j],a[i]];
     }
-    return arr;
+    return a;
+  }
+
+  function buildDeck(){
+    let picked = [];
+    Object.keys(DECK_MIX).forEach(function(verdict){
+      const pool = shuffle(CARDS.filter(function(c){ return c.correct === verdict; }));
+      picked = picked.concat(pool.slice(0, DECK_MIX[verdict]));
+    });
+    const cards = shuffle(picked).map(function(c){ return Object.assign({}, c); });
+    const base = Math.floor(TOTAL_POINTS / cards.length);
+    let extra = TOTAL_POINTS - base * cards.length;
+    cards.forEach(function(c){
+      c.points = base + (extra > 0 ? 1 : 0);
+      if(extra > 0) extra -= 1;
+    });
+    return cards;
   }
 
   function startGame(){
     gameStartTime = Date.now(); // FIX: record when the game starts
     answerLocked = false;
-    order = shuffledOrder(CARDS.length);
+    deck = buildDeck();
     idx = 0; lives = 3; youScore = 0; atkScore = 0; correctCount = 0; blockedCount = 0; streak = 0; gameOver = false;
     introSec.hidden = true;
     endSec.hidden = true;
@@ -1007,7 +1095,7 @@
 
   function renderHud(){
     el('lives').innerHTML = Array.from({length:3}, (_,i)=> i < lives ? '🛡️' : '<span class="lost">🛡️</span>').join('');
-    el('roundLabel').textContent = `ROUND ${Math.min(idx+1, CARDS.length)} / ${CARDS.length}`;
+    el('roundLabel').textContent = `ROUND ${Math.min(idx+1, deck.length)} / ${deck.length}`;
     const youPct = Math.min(100, (youScore/100)*100);
     const atkPct = Math.min(100, (atkScore/100)*100);
     el('youFill').style.width = youPct + '%';
@@ -1015,13 +1103,13 @@
   }
 
   function renderCard(){
-    if(idx >= order.length || gameOver){ return endGame(); }
+    if(idx >= deck.length || gameOver){ return endGame(); }
     answerLocked = false;
     zonesEl.querySelectorAll('.zone').forEach(zone => {
       zone.removeAttribute('aria-disabled');
       zone.style.pointerEvents = '';
     });
-    const data = CARDS[order[idx]];
+    const data = deck[idx];
     el('channelChip').textContent = data.channel;
 
     const existing = cardZone.querySelector('.msg-card');
@@ -1121,7 +1209,7 @@
       zone.setAttribute('aria-disabled', 'true');
       zone.style.pointerEvents = 'none';
     });
-    const data = CARDS[order[idx]];
+    const data = deck[idx];
     const correct = data.correct;
     const pts = data.points;
     let outcome;
@@ -1343,27 +1431,13 @@
     return div.innerHTML;
   }
 
-  /* --- Interim client-side single-play guard (localStorage) --- */
-  function getPlayedMap(){
-    try{ return JSON.parse(localStorage.getItem(PLAYED_KEY) || '{}'); }
-    catch(err){ return {}; }
-  }
-  function hasPlayedLocally(email){
-    return Object.prototype.hasOwnProperty.call(getPlayedMap(), email);
-  }
-  function markPlayedLocally(email, name){
-    const map = getPlayedMap();
-    map[email] = { name, playedAt: new Date().toISOString() };
-    try{ localStorage.setItem(PLAYED_KEY, JSON.stringify(map)); }
-    catch(err){ console.warn('Could not save local play record:', err); }
-  }
-
   // Asks the Power Automate flow whether this email has already played.
   // Returns { ok:true, exists:boolean } or { ok:false, reason }.
   async function checkEmailRemote(email){
     if(!CONFIG.CHECK_ENDPOINT){
       return { ok:false, reason:'not-configured' };
     }
+    const normalizedEmail = String(email).trim().toLowerCase(); // always lower case
     const controller = new AbortController();
     const timeout = setTimeout(()=> controller.abort(), 12000);
     try{
@@ -1371,7 +1445,7 @@
       const res = await fetch(CONFIG.CHECK_ENDPOINT, {
         method: 'POST',
         headers: { 'Content-Type': CONFIG.SEND_AS_TEXT_PLAIN ? 'text/plain' : 'application/json' },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify({ email: normalizedEmail }),
         signal: controller.signal
       });
       if(!res.ok){
@@ -1449,7 +1523,7 @@
 
       const payload = {
         name: player.name,
-        email: player.email,
+        email: String(player.email).trim().toLowerCase(), // always lower case
         score: youScore,
         durationSeconds: durationSeconds, // total time spent playing, in seconds
         durationDisplay: durationSeconds !== null ? formatDuration(durationSeconds) : '', // e.g. "2:14"
@@ -1537,13 +1611,6 @@
       return;
     }
 
-    // Single-play guard — this is the ONLY thing blocking re-entry
-    // right now, per the request. Blocks instantly, no network call.
-    if(hasPlayedLocally(email)){
-      showEntryError("This email has already played — one entry per person. Re-entry isn't allowed.");
-      return;
-    }
-
     // Server-side check: has this email already played (any browser/device)?
     const originalLabel = startBtn.textContent;
     startBtn.disabled = true;
@@ -1562,10 +1629,6 @@
     }
 
     player = { name, email };
-
-    // Lock this email in immediately, before any gameplay happens, so
-    // bailing out and restarting doesn't let someone replay.
-    markPlayedLocally(email, name);
 
     startGame();
   });
